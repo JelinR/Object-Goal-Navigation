@@ -208,7 +208,7 @@ def splat_feat_nd(init_grid, feat, coords):
     """
     wts_dim = []
     pos_dim = []
-    grid_dims = init_grid.shape[2:] #Width, Height, Depth
+    grid_dims = init_grid.shape[2:] #Width, Height, Dim
 
     B = init_grid.shape[0]  #Number of Channels / Scenes
     F = init_grid.shape[1]  #Number of features / channels
@@ -226,8 +226,10 @@ def splat_feat_nd(init_grid, feat, coords):
 
         for ix in [0, 1]:
             pos_ix = torch.floor(pos) + ix
+
+            #Check if within bounds
             safe_ix = (pos_ix > 0) & (pos_ix < grid_dims[d])
-            safe_ix = safe_ix.type(pos.dtype)
+            safe_ix = safe_ix.type(pos.dtype)   #If True, then 1, if False, then 0
 
             wts_ix = 1 - torch.abs(pos - pos_ix)
 

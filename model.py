@@ -186,17 +186,17 @@ class Semantic_Mapping(nn.Module):
         depth = obs[:, 3, :, :]     
 
         #Gets the 3D point cloud centered in the camera center
+        #The output is of shape: (B, H, W, D), where D = 3.
+        #For each camera pixel (of pair (H, W)), there is a corresponding 3D point (D)
+        #The total number of pixels (HxW) gives the total number of 3D points
         point_cloud_t = du.get_point_cloud_from_z_t(
             depth, self.camera_matrix, self.device, scale=self.du_scale)
 
-        #Gets the 3D point cloud accounting for the camera elevation and angle
+        #Gets the 3D point cloud (from prev) accounting for the camera elevation and angle
         agent_view_t = du.transform_camera_view_t(
             point_cloud_t, self.agent_height, 0, self.device)
 
         #Gets the 3D point cloud (from prev) accounting also for the camera location
-        #The output is of shape: (B, H, W, D), where D = 3.
-        #For each camera pixel (of pair (H, W)), there is a corresponding 3D point (D)
-        #The total number of pixels (HxW) gives the total number of 3D points
         agent_view_centered_t = du.transform_pose_t(
             agent_view_t, self.shift_loc, self.device)
 
@@ -205,10 +205,12 @@ class Semantic_Mapping(nn.Module):
         xy_resolution = self.resolution
         z_resolution = self.z_resolution
         vision_range = self.vision_range
+
         XYZ_cm_std = agent_view_centered_t.float()
         XYZ_cm_std[..., :2] = (XYZ_cm_std[..., :2] / xy_resolution)
         XYZ_cm_std[..., :2] = (XYZ_cm_std[..., :2] -
                                vision_range // 2.) / vision_range * 2.
+        
         XYZ_cm_std[..., 2] = XYZ_cm_std[..., 2] / z_resolution
         XYZ_cm_std[..., 2] = (XYZ_cm_std[..., 2] -
                               (max_h + min_h) // 2.) / (max_h - min_h) * 2.
