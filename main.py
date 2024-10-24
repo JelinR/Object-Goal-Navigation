@@ -47,6 +47,7 @@ def main():
     num_episodes = int(args.num_eval_episodes)
     device = args.device = torch.device("cuda:0" if args.cuda else "cpu")
 
+    #DOUBT
     g_masks = torch.ones(num_scenes).float().to(device)
 
     best_g_reward = -np.inf
@@ -109,26 +110,31 @@ def main():
     full_pose = torch.zeros(num_scenes, 3).float().to(device)
     local_pose = torch.zeros(num_scenes, 3).float().to(device)
 
-    # Origin of local map
+    # Origin of local map (with shape: (y_origin, x_origin, orientation), in meters, without resolution scaling)
     origins = np.zeros((num_scenes, 3))
 
     # Local Map Boundaries
     lmb = np.zeros((num_scenes, 4)).astype(int)
 
     # Planner pose inputs has 7 dimensions
-    # 1-3 store continuous global agent location
-    # 4-7 store local map boundaries
+    # 1-3 store continuous global agent location (in meters, without resolution scaling)
+    # 4-7 store local map boundaries (in cm, with resolution scaling)
     planner_pose_inputs = np.zeros((num_scenes, 7))
 
+    #Returns the local map boundaries in the form: [x_lower_left, x_upper_right, y_lower_left, y_upper_right].  This defines the boundary.
+    #Remember the args.global_downscaling is already applied when defining local_w, local_h.  So, there is no explicit application here.
     def get_local_map_boundaries(agent_loc, local_sizes, full_sizes):
-        loc_r, loc_c = agent_loc
-        local_w, local_h = local_sizes
-        full_w, full_h = full_sizes
+        loc_r, loc_c = agent_loc            #Corresponds to the center of the local map
+        local_w, local_h = local_sizes      #Dimensions of the local map
+        full_w, full_h = full_sizes         #Dimensions of the full map
 
+        #If downscaling is applied, then the local map will be smaller than the full map
         if args.global_downscaling > 1:
-            gx1, gy1 = loc_r - local_w // 2, loc_c - local_h // 2
-            gx2, gy2 = gx1 + local_w, gy1 + local_h
-            if gx1 < 0:
+            gx1, gy1 = loc_r - local_w // 2, loc_c - local_h // 2   #Corresponds to the lower-left vertex of the local map
+            gx2, gy2 = gx1 + local_w, gy1 + local_h                 #Corresponds to the upper-right vertex of the local map
+            
+            #If the local map boundaries extend beyond the full map boundaries, these are corrected to remain within the full map
+            if gx1 < 0:                                 
                 gx1, gx2 = 0, local_w
             if gx2 > full_w:
                 gx1, gx2 = full_w - local_w, full_w
@@ -137,6 +143,8 @@ def main():
                 gy1, gy2 = 0, local_h
             if gy2 > full_h:
                 gy1, gy2 = full_h - local_h, full_h
+        
+        #If no downscaling, return the full map vertices
         else:
             gx1, gx2, gy1, gy2 = 0, full_w, 0, full_h
 
@@ -145,15 +153,26 @@ def main():
     def init_map_and_pose():
         full_map.fill_(0.)
         full_pose.fill_(0.)
-        full_pose[:, :2] = args.map_size_cm / 100.0 / 2.0
 
+        #Converts to meter, and gets the center point of each map scene
+        #With first two columns referring to the x, y coordinates in meters
+        #The third column is still zeros, I think this is the orientation
+        full_pose[:, :2] = args.map_size_cm / 100.0 / 2.0   
         locs = full_pose.cpu().numpy()
+
+        #The first three columns refer to (x_loc, y_loc, orientation)
+        #The first two columns (x, y) are initialized to be the center location of the map (in meters)
+        #The third column (orientation) is initialized to zero
         planner_pose_inputs[:, :3] = locs
         for e in range(num_scenes):
             r, c = locs[e, 1], locs[e, 0]
+
+            #Obtain the (x, y) coordinate in cm, scaled down to resolution
             loc_r, loc_c = [int(r * 100.0 / args.map_resolution),
                             int(c * 100.0 / args.map_resolution)]
 
+            #The rectangular region around the current position: (loc_r - 1, loc_c - 1), (loc_r + 1, loc_c + 1)
+            #This region is set to 1 for the two channels: Explored Area, Current Agent Location
             full_map[e, 2:4, loc_r - 1:loc_r + 2, loc_c - 1:loc_c + 2] = 1.0
 
             lmb[e] = get_local_map_boundaries((loc_r, loc_c),
@@ -161,6 +180,8 @@ def main():
                                               (full_w, full_h))
 
             planner_pose_inputs[e, 3:] = lmb[e]
+
+            #Saves local map origin as (y_origin, x_origin, orientation) in meters, without resolution scaling
             origins[e] = [lmb[e][2] * args.map_resolution / 100.0,
                           lmb[e][0] * args.map_resolution / 100.0, 0.]
 
@@ -168,6 +189,9 @@ def main():
             local_map[e] = full_map[e, :,
                                     lmb[e, 0]:lmb[e, 1],
                                     lmb[e, 2]:lmb[e, 3]]
+            
+            #Converts from global view to local view
+            #Local pose is centered in local frame, and the orientation is the difference btw the global and origin poses
             local_pose[e] = full_pose[e] - \
                 torch.from_numpy(origins[e]).to(device).float()
 
