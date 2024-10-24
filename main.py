@@ -150,6 +150,7 @@ def main():
 
         return [gx1, gx2, gy1, gy2]
 
+    #Initializes the full_map, full_pose, local_map, local_pose, lmb, origins, planner_pose_inputs
     def init_map_and_pose():
         full_map.fill_(0.)
         full_pose.fill_(0.)
@@ -195,6 +196,8 @@ def main():
             local_pose[e] = full_pose[e] - \
                 torch.from_numpy(origins[e]).to(device).float()
 
+
+    #Converts the prev func (init_map_and_pose) for pytorch
     def init_map_and_pose_for_env(e):
         full_map[e].fill_(0.)
         full_pose[e].fill_(0.)
@@ -221,10 +224,19 @@ def main():
             torch.from_numpy(origins[e]).to(device).float()
 
     def update_intrinsic_rew(e):
+
+        #Gets the total explored area.  Sums across the y dimension and then the x dimension, 
+        #Effectively doing full_map[e, 1].sum()
         prev_explored_area = full_map[e, 1].sum(1).sum(0)
+
+        #Updates the full map with the current local map
         full_map[e, :, lmb[e, 0]:lmb[e, 1], lmb[e, 2]:lmb[e, 3]] = \
             local_map[e]
+        
+        #Gets the updated explored area
         curr_explored_area = full_map[e, 1].sum(1).sum(0)
+
+        #The reward is set to be the difference in explored areas
         intrinsic_rews[e] = curr_explored_area - prev_explored_area
         intrinsic_rews[e] *= (args.map_resolution / 100.)**2  # to m^2
 

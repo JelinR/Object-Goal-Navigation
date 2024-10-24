@@ -23,7 +23,7 @@ ANGLE_EPS = 0.001
 def normalize(v):
     return v / np.linalg.norm(v)
 
-
+#Generates a rotation matrix that rotates a point around a given axis by a specified angle
 def get_r_matrix(ax_, angle):
     ax = normalize(ax_)
     if np.abs(angle) > ANGLE_EPS:

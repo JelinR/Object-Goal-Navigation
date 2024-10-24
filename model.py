@@ -129,6 +129,7 @@ class RL_Policy(nn.Module):
         return value, action_log_probs, dist_entropy, rnn_hxs
 
 
+
 class Semantic_Mapping(nn.Module):
 
     """
@@ -156,7 +157,7 @@ class Semantic_Mapping(nn.Module):
 
         self.max_height = int(360 / self.z_resolution)
         self.min_height = int(-40 / self.z_resolution)
-        self.agent_height = args.camera_height * 100.
+        self.agent_height = args.camera_height * 100.               #Converts camera height to cm
         self.shift_loc = [self.vision_range *
                           self.resolution // 2, 0, np.pi / 2.0]
         self.camera_matrix = du.get_camera_matrix(
@@ -170,21 +171,32 @@ class Semantic_Mapping(nn.Module):
             args.num_processes, 1 + self.num_sem_categories, vr, vr,
             self.max_height - self.min_height
         ).float().to(self.device)
+
+        
         self.feat = torch.ones(
             args.num_processes, 1 + self.num_sem_categories,
             self.screen_h // self.du_scale * self.screen_w // self.du_scale
         ).float().to(self.device)
 
     def forward(self, obs, pose_obs, maps_last, poses_last):
+        #Batches, channels, height, weight
         bs, c, h, w = obs.size()
-        depth = obs[:, 3, :, :]
 
+        #Depth observation is the fourth channel, while first three channels are the RGB channels
+        depth = obs[:, 3, :, :]     
+
+        #Gets the 3D point cloud centered in the camera center
         point_cloud_t = du.get_point_cloud_from_z_t(
             depth, self.camera_matrix, self.device, scale=self.du_scale)
 
+        #Gets the 3D point cloud accounting for the camera elevation and angle
         agent_view_t = du.transform_camera_view_t(
             point_cloud_t, self.agent_height, 0, self.device)
 
+        #Gets the 3D point cloud (from prev) accounting also for the camera location
+        #The output is of shape: (B, H, W, D), where D = 3.
+        #For each camera pixel (of pair (H, W)), there is a corresponding 3D point (D)
+        #The total number of pixels (HxW) gives the total number of 3D points
         agent_view_centered_t = du.transform_pose_t(
             agent_view_t, self.shift_loc, self.device)
 
@@ -200,10 +212,14 @@ class Semantic_Mapping(nn.Module):
         XYZ_cm_std[..., 2] = XYZ_cm_std[..., 2] / z_resolution
         XYZ_cm_std[..., 2] = (XYZ_cm_std[..., 2] -
                               (max_h + min_h) // 2.) / (max_h - min_h) * 2.
+        
+        #Obtains the semantic features (from fifth channel onwards) and pools
+        #And flattens the last two dims (H, W) giving num_points
         self.feat[:, 1:, :] = nn.AvgPool2d(self.du_scale)(
             obs[:, 4:, :, :]
         ).view(bs, c - 4, h // self.du_scale * w // self.du_scale)
 
+        #Permute to get new shape: (Batches, num_dims, num_points)
         XYZ_cm_std = XYZ_cm_std.permute(0, 3, 1, 2)
         XYZ_cm_std = XYZ_cm_std.view(XYZ_cm_std.shape[0],
                                      XYZ_cm_std.shape[1],

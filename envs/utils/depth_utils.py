@@ -201,18 +201,22 @@ def splat_feat_nd(init_grid, feat, coords):
         init_grid: B X nF X W X H X D X ..
         feat: B X nF X nPt
         coords: B X nDims X nPt in [-1, 1]
+
+        (nPt is Number of points)
     Returns:
         grid: B X nF X W X H X D X ..
     """
     wts_dim = []
     pos_dim = []
-    grid_dims = init_grid.shape[2:]
+    grid_dims = init_grid.shape[2:] #Width, Height, Depth
 
-    B = init_grid.shape[0]
-    F = init_grid.shape[1]
+    B = init_grid.shape[0]  #Number of Channels / Scenes
+    F = init_grid.shape[1]  #Number of features / channels
 
     n_dims = len(grid_dims)
 
+    #This flattens the dimension (W, H, D) into a single dimension
+    #The last single dimension can be likened to a collection of all point cloud elements
     grid_flat = init_grid.view(B, F, -1)
 
     for d in range(n_dims):
