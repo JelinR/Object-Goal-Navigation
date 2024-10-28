@@ -238,12 +238,16 @@ class Semantic_Mapping(nn.Module):
                                      XYZ_cm_std.shape[1],
                                      XYZ_cm_std.shape[2] * XYZ_cm_std.shape[3])
 
+        #Returns a grid with feature values splatted onto the voxels
+        #Of Shape: (Scenes, Features, Width, Height, Depth)
         voxels = du.splat_feat_nd(
             self.init_grid * 0., self.feat, XYZ_cm_std).transpose(2, 3)
 
         min_z = int(25 / z_resolution - min_h)
         max_z = int((self.agent_height + 1) / z_resolution - min_h)
 
+        #Sums along the Height dimension
+        #New Shape: (Scenes, Features, Width, Height)
         agent_height_proj = voxels[..., min_z:max_z].sum(4)
         all_height_proj = voxels.sum(4)
 
@@ -256,15 +260,25 @@ class Semantic_Mapping(nn.Module):
 
         pose_pred = poses_last
 
+        #Creates map of shape: (Scenes, Features, map_size, map_size)
         agent_view = torch.zeros(bs, c,
                                  self.map_size_cm // self.resolution,
                                  self.map_size_cm // self.resolution
                                  ).to(self.device)
-
+        
+        #Creates a rectangular region of size (vr, vr) from the map center
+        #1. Get map center, scale with resolution
+        #2. Lower-left point: (map_center - vr // 2, map_center)
+        #3. Upper-right point: (map_center + vr // 2, map_center + vr)
         x1 = self.map_size_cm // (self.resolution * 2) - self.vision_range // 2
         x2 = x1 + self.vision_range
         y1 = self.map_size_cm // (self.resolution * 2)
         y2 = y1 + self.vision_range
+
+        #Adds features to map:
+        #1. Feature 0: Agent Height Projection
+        #2. Feature 1: All Height Projection
+        #3. Features 4 onwards: Semantic Categories Projection
         agent_view[:, 0:1, y1:y2, x1:x2] = fp_map_pred
         agent_view[:, 1:2, y1:y2, x1:x2] = fp_exp_pred
         agent_view[:, 4:, y1:y2, x1:x2] = torch.clamp(
@@ -290,6 +304,9 @@ class Semantic_Mapping(nn.Module):
 
             return pose
 
+        #Gets current pose, after accounting for sensor noise
+        #Of Shape: (Scenes, 3) 
+        #Second Dimension is pose: (y, x, orientation)
         current_poses = get_new_pose_batch(poses_last, corrected_pose)
         st_pose = current_poses.clone().detach()
 

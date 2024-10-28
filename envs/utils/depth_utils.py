@@ -264,14 +264,26 @@ def splat_feat_nd(init_grid, feat, coords):
     for ix_d in itertools.product(*l_ix):
 
         #Of shape: (nPts,)
+        #index: Keeps track of final grid cell index to add feature
+        #wts: For a grid cell, accumulates weights from each dims
         wts = torch.ones_like(wts_dim[0][0])
         index = torch.zeros_like(wts_dim[0][0])
 
         for d in range(n_dims):
+
+            #grid_dims[d]: Size of grid in current dimension (d)
+            #pos_dim[d][ix_d[d]]: Exact cell position in current dimension (d)
+            #index: Points to the correct flattened cell in grid_flat
             index = index * grid_dims[d] + pos_dim[d][ix_d[d]]
+
+            #Starts at 1 (100% of the feature)
+            #Multiplies the weights across the three dimensions
             wts = wts * wts_dim[d][ix_d[d]]
 
-        index = index.long()
+        index = index.long()    #Converts to type(int64)
+
+        #The underscore (_) at the end means this is applied in place
+        #The dimension 2 contains the flattened spatial points
         grid_flat.scatter_add_(2, index.expand(-1, F, -1), feat * wts)
         grid_flat = torch.round(grid_flat)
 
