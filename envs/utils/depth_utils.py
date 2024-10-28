@@ -206,24 +206,34 @@ def splat_feat_nd(init_grid, feat, coords):
     Returns:
         grid: B X nF X W X H X D X ..
     """
+    #To save adjacent grid cells along each dimension
+    #Of shape: (n_dims, 2, nPt)
     wts_dim = []
     pos_dim = []
-    grid_dims = init_grid.shape[2:] #Width, Height, Dim
 
-    B = init_grid.shape[0]  #Number of Channels / Scenes
-    F = init_grid.shape[1]  #Number of features / channels
+    #Grid Dimensions: (Width, Height, Depth)
+    grid_dims = init_grid.shape[2:] 
+
+    B = init_grid.shape[0]  #Number of Batches / Scenes
+    F = init_grid.shape[1]  #Number of Feature Maps / channels
 
     n_dims = len(grid_dims)
 
     #This flattens the dimension (W, H, D) into a single dimension
     #The last single dimension can be likened to a collection of all point cloud elements
+    #Collapses all 3D grid cells into one dimension, helping refer to each cell in 1D
     grid_flat = init_grid.view(B, F, -1)
 
     for d in range(n_dims):
+
+        #Reversing normalization that was done earlier (normalization and centering)
+        #Returns 3D position (with only resolution scaling)
         pos = coords[:, [d], :] * grid_dims[d] / 2 + grid_dims[d] / 2
         pos_d = []
         wts_d = []
 
+        #Gets the grid cell below and above the pos
+        #Saves the pos_ix and weights for bilinear interpolation
         for ix in [0, 1]:
             pos_ix = torch.floor(pos) + ix
 
@@ -231,6 +241,8 @@ def splat_feat_nd(init_grid, feat, coords):
             safe_ix = (pos_ix > 0) & (pos_ix < grid_dims[d])
             safe_ix = safe_ix.type(pos.dtype)   #If True, then 1, if False, then 0
 
+            #If pox_ix is more than 0.5 wrt pos, then it gets a small weight, else it gets a higher weight
+            #So, the closer pox_ix is to pox, the higher the weight
             wts_ix = 1 - torch.abs(pos - pos_ix)
 
             wts_ix = wts_ix * safe_ix
@@ -239,14 +251,22 @@ def splat_feat_nd(init_grid, feat, coords):
             pos_d.append(pos_ix)
             wts_d.append(wts_ix)
 
+        #For all points along a specific dimension,
+        #Saves adjacent grid cells and their weights
         pos_dim.append(pos_d)
         wts_dim.append(wts_d)
 
+    #Along each dim
     l_ix = [[0, 1] for d in range(n_dims)]
 
+    #Loops over the 8 points of a cube
+    #From (0, 0, 0) to (1, 1, 1)
     for ix_d in itertools.product(*l_ix):
+
+        #Of shape: (nPts,)
         wts = torch.ones_like(wts_dim[0][0])
         index = torch.zeros_like(wts_dim[0][0])
+
         for d in range(n_dims):
             index = index * grid_dims[d] + pos_dim[d][ix_d[d]]
             wts = wts * wts_dim[d][ix_d[d]]

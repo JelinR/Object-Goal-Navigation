@@ -172,7 +172,8 @@ class Semantic_Mapping(nn.Module):
             self.max_height - self.min_height
         ).float().to(self.device)
 
-        
+        #Contains feature information for each point
+        #Of shape: (Scenes, 1+Sem_Cats, num_Points_scaled)
         self.feat = torch.ones(
             args.num_processes, 1 + self.num_sem_categories,
             self.screen_h // self.du_scale * self.screen_w // self.du_scale
@@ -189,6 +190,7 @@ class Semantic_Mapping(nn.Module):
         #The output is of shape: (B, H, W, D), where D = 3.
         #For each camera pixel (of pair (H, W)), there is a corresponding 3D point (D)
         #The total number of pixels (HxW) gives the total number of 3D points
+        #See Organized Point Clouds
         point_cloud_t = du.get_point_cloud_from_z_t(
             depth, self.camera_matrix, self.device, scale=self.du_scale)
 
@@ -197,6 +199,7 @@ class Semantic_Mapping(nn.Module):
             point_cloud_t, self.agent_height, 0, self.device)
 
         #Gets the 3D point cloud (from prev) accounting also for the camera location
+        #Transforms to Geocentric Frame
         agent_view_centered_t = du.transform_pose_t(
             agent_view_t, self.shift_loc, self.device)
 
@@ -207,10 +210,17 @@ class Semantic_Mapping(nn.Module):
         vision_range = self.vision_range
 
         XYZ_cm_std = agent_view_centered_t.float()
+
+        #Scales and normalizes the x-y plane (first 2 of the last dim)
+        #1. Scales with resolution
+        #2. Centers wrt to the local map using vision_range
+        #3. Normalizes with twice the local map size such that the boundary region has an absolute value of 1 wrt the center point (vr // 2)
         XYZ_cm_std[..., :2] = (XYZ_cm_std[..., :2] / xy_resolution)
         XYZ_cm_std[..., :2] = (XYZ_cm_std[..., :2] -
                                vision_range // 2.) / vision_range * 2.
         
+        #Scales the z plane (last 1 of the last dim)
+        #Similar process as above
         XYZ_cm_std[..., 2] = XYZ_cm_std[..., 2] / z_resolution
         XYZ_cm_std[..., 2] = (XYZ_cm_std[..., 2] -
                               (max_h + min_h) // 2.) / (max_h - min_h) * 2.
@@ -221,6 +231,7 @@ class Semantic_Mapping(nn.Module):
             obs[:, 4:, :, :]
         ).view(bs, c - 4, h // self.du_scale * w // self.du_scale)
 
+        #From Old shape: (Batches, Height, Width, 3D point)
         #Permute to get new shape: (Batches, num_dims, num_points)
         XYZ_cm_std = XYZ_cm_std.permute(0, 3, 1, 2)
         XYZ_cm_std = XYZ_cm_std.view(XYZ_cm_std.shape[0],
