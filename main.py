@@ -103,8 +103,7 @@ def main():
 
     # Initializing full and local map
     full_map = torch.zeros(num_scenes, nc, full_w, full_h).float().to(device)
-    local_map = torch.zeros(num_scenes, nc, local_w,
-                            local_h).float().to(device)
+    local_map = torch.zeros(num_scenes, nc, local_w, local_h).float().to(device)
 
     # Initial full and local pose
     full_pose = torch.zeros(num_scenes, 3).float().to(device)
@@ -150,14 +149,15 @@ def main():
 
         return [gx1, gx2, gy1, gy2]
 
-    #Initializes the full_map, full_pose, local_map, local_pose, lmb, origins, planner_pose_inputs
+    #Initializes the full_map, local_map, planner_pose_inputs
     def init_map_and_pose():
         full_map.fill_(0.)
         full_pose.fill_(0.)
 
         #Converts to meter, and gets the center point of each map scene
         #With first two columns referring to the x, y coordinates in meters
-        #The third column is still zeros, I think this is the orientation
+        #The third column is still zeros, this is the orientation
+        #locs: (map_center, map_center, 0)
         full_pose[:, :2] = args.map_size_cm / 100.0 / 2.0   
         locs = full_pose.cpu().numpy()
 
@@ -172,20 +172,23 @@ def main():
             loc_r, loc_c = [int(r * 100.0 / args.map_resolution),
                             int(c * 100.0 / args.map_resolution)]
 
+            #INIT: full_map
             #The rectangular region around the current position: (loc_r - 1, loc_c - 1), (loc_r + 1, loc_c + 1)
-            #This region is set to 1 for the two channels: Explored Area, Current Agent Location
+            #This region is set to 1 for the two channels: Current Agent Location, Past Agent Locations
             full_map[e, 2:4, loc_r - 1:loc_r + 2, loc_c - 1:loc_c + 2] = 1.0
 
             lmb[e] = get_local_map_boundaries((loc_r, loc_c),
                                               (local_w, local_h),
                                               (full_w, full_h))
 
+            #INIT: planner_pose_inputs
             planner_pose_inputs[e, 3:] = lmb[e]
 
             #Saves local map origin as (y_origin, x_origin, orientation) in meters, without resolution scaling
             origins[e] = [lmb[e][2] * args.map_resolution / 100.0,
                           lmb[e][0] * args.map_resolution / 100.0, 0.]
 
+        #INIT: local_map
         for e in range(num_scenes):
             local_map[e] = full_map[e, :,
                                     lmb[e, 0]:lmb[e, 1],
@@ -197,7 +200,6 @@ def main():
                 torch.from_numpy(origins[e]).to(device).float()
 
 
-    #Converts the prev func (init_map_and_pose) for pytorch
     def init_map_and_pose_for_env(e):
         full_map[e].fill_(0.)
         full_pose[e].fill_(0.)
@@ -314,6 +316,9 @@ def main():
         local_map[e, 2:4, loc_r - 1:loc_r + 2, loc_c - 1:loc_c + 2] = 1.
         global_orientation[e] = int((locs[e, 2] + 180.0) / 5.)
 
+    #Initializes Global Input
+    #Of Shape: (Scenes, Channels, x, y)
+    #Channels: 8 + n_sem_cats (4 + 4 + n_sem_cats)
     global_input[:, 0:4, :, :] = local_map[:, 0:4, :, :].detach()
     global_input[:, 4:8, :, :] = nn.MaxPool2d(args.global_downscaling)(
         full_map[:, 0:4, :, :])
@@ -419,8 +424,8 @@ def main():
             sem_map_module(obs, poses, local_map, local_pose)
 
         locs = local_pose.cpu().numpy()
-        planner_pose_inputs[:, :3] = locs + origins
-        local_map[:, 2, :, :].fill_(0.)  # Resetting current location channel
+        planner_pose_inputs[:, :3] = locs + origins     #Shifting origins
+        local_map[:, 2, :, :].fill_(0.)                 #Resetting current location channel
         for e in range(num_scenes):
             r, c = locs[e, 1], locs[e, 0]
             loc_r, loc_c = [int(r * 100.0 / args.map_resolution),
@@ -431,14 +436,19 @@ def main():
 
         # ------------------------------------------------------------------
         # Global Policy
+        # For every global step, update the full and local maps
         if l_step == args.num_local_steps - 1:
-            # For every global step, update the full and local maps
+            
             for e in range(num_scenes):
                 if wait_env[e] == 1:  # New episode
                     wait_env[e] = 0.
                 else:
                     update_intrinsic_rew(e)
-
+                
+                #Updating the Full Map and Full Pose using local map and local poses
+                #This is done for each global step (each scene)
+                #For full_map, the local map is added to specifically the local map boundary region in the full map
+                #For full_pose, the local pose is realigned with new global origins
                 full_map[e, :, lmb[e, 0]:lmb[e, 1], lmb[e, 2]:lmb[e, 3]] = \
                     local_map[e]
                 full_pose[e] = local_pose[e] + \
