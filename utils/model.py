@@ -25,12 +25,17 @@ def get_grid(pose, grid_size, device):
     cos_t = t.cos()
     sin_t = t.sin()
 
+    #Construct Rotation Matrix
+    #Third column is stacked with zeros to represent NO translation
     theta11 = torch.stack([cos_t, -sin_t,
                            torch.zeros(cos_t.shape).float().to(device)], 1)
     theta12 = torch.stack([sin_t, cos_t,
                            torch.zeros(cos_t.shape).float().to(device)], 1)
     theta1 = torch.stack([theta11, theta12], 1)
 
+    #Construct Translation Matrix
+    #Only the third column (for translation) is filled
+    #The identity matrix in the first and second column signify NO rotation
     theta21 = torch.stack([torch.ones(x.shape).to(device),
                            -torch.zeros(x.shape).to(device), x], 1)
     theta22 = torch.stack([torch.zeros(x.shape).to(device),

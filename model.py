@@ -310,15 +310,22 @@ class Semantic_Mapping(nn.Module):
         current_poses = get_new_pose_batch(poses_last, corrected_pose)
         st_pose = current_poses.clone().detach()
 
+        #Fixes baseline for translation as map_center
+        #Scales and centers the (x, y) coords, then
+        #Normalizes wrt map_center
         st_pose[:, :2] = - (st_pose[:, :2]
                             * 100.0 / self.resolution
                             - self.map_size_cm // (self.resolution * 2)) /\
             (self.map_size_cm // (self.resolution * 2))
+        
+        #Fixes baseline for rotations as 90 degrees
         st_pose[:, 2] = 90. - (st_pose[:, 2])
 
+        #Gets rotation matrix, translation matrix with the pose
         rot_mat, trans_mat = get_grid(st_pose, agent_view.size(),
                                       self.device)
 
+        #Used to change from egocentric to geocentric view
         rotated = F.grid_sample(agent_view, rot_mat, align_corners=True)
         translated = F.grid_sample(rotated, trans_mat, align_corners=True)
 
