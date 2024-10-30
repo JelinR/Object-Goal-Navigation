@@ -2,7 +2,8 @@ import torch
 
 from .habitat import construct_envs
 
-
+# Divides and assigns scenes to threads (processes)
+# For more info, go to source file (.habitat)
 def make_vec_envs(args):
     envs = construct_envs(args)
     envs = VecPyTorch(envs, args.device)

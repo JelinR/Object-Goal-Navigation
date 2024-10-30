@@ -44,7 +44,11 @@ def _get_scenes_from_folder(content_dir):
     scenes.sort()
     return scenes
 
-
+#Sets up multiple parallel environments using the VectorEnv class. 
+# This allows for multi-threaded processing by dividing scenes and assigning each to a separate process.
+# Each process (corresponding to a thread) will have one or more scenes assigned to it.
+# If there are 8 scenes and 4 threads (processes), each thread will run 2 scenes
+# Within a thread, the scenes are run sequentially, while amongst threads, the scenes are processed parallely
 def construct_envs(args):
     env_configs = []
     args_list = []
