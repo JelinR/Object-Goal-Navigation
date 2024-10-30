@@ -251,10 +251,13 @@ class Semantic_Mapping(nn.Module):
         agent_height_proj = voxels[..., min_z:max_z].sum(4)
         all_height_proj = voxels.sum(4)
 
-        fp_map_pred = agent_height_proj[:, 0:1, :, :]
-        fp_exp_pred = all_height_proj[:, 0:1, :, :]
-        fp_map_pred = fp_map_pred / self.map_pred_threshold
-        fp_exp_pred = fp_exp_pred / self.exp_pred_threshold
+        fp_map_pred = agent_height_proj[:, 0:1, :, :]           #For Obstacles (Channel 0)
+        fp_exp_pred = all_height_proj[:, 0:1, :, :]             #For Explored Regions (Channel 1)
+        
+        #Threshold beyond which region is marked as confirmed (obstacle or explored)
+        #Below the threshold means probability of being sure (obstacle or explored)
+        fp_map_pred = fp_map_pred / self.map_pred_threshold     
+        fp_exp_pred = fp_exp_pred / self.exp_pred_threshold     
         fp_map_pred = torch.clamp(fp_map_pred, min=0.0, max=1.0)
         fp_exp_pred = torch.clamp(fp_exp_pred, min=0.0, max=1.0)
 
@@ -276,8 +279,8 @@ class Semantic_Mapping(nn.Module):
         y2 = y1 + self.vision_range
 
         #Adds features to map:
-        #1. Feature 0: Agent Height Projection
-        #2. Feature 1: All Height Projection
+        #1. Feature 0: Agent Height Projection  (for obstacles)
+        #2. Feature 1: All Height Projection    (for explored regions)
         #3. Features 4 onwards: Semantic Categories Projection
         agent_view[:, 0:1, y1:y2, x1:x2] = fp_map_pred
         agent_view[:, 1:2, y1:y2, x1:x2] = fp_exp_pred

@@ -152,10 +152,10 @@ def main():
     #Initializes the full_map, local_map, planner_pose_inputs
     def init_map_and_pose():
         full_map.fill_(0.)
-        full_pose.fill_(0.)
+        full_pose.fill_(0.)     #(y, x, orientation)
 
         #Converts to meter, and gets the center point of each map scene
-        #With first two columns referring to the x, y coordinates in meters
+        #With first two columns referring to the y, x coordinates in meters
         #The third column is still zeros, this is the orientation
         #locs: (map_center, map_center, 0)
         full_pose[:, :2] = args.map_size_cm / 100.0 / 2.0   
@@ -165,7 +165,11 @@ def main():
         #The first two columns (x, y) are initialized to be the center location of the map (in meters)
         #The third column (orientation) is initialized to zero
         planner_pose_inputs[:, :3] = locs
+
         for e in range(num_scenes):
+
+            #r -> x, c -> y
+            #locs is arranged as (y, x, orientation)
             r, c = locs[e, 1], locs[e, 0]
 
             #Obtain the (x, y) coordinate in cm, scaled down to resolution
@@ -195,7 +199,8 @@ def main():
                                     lmb[e, 2]:lmb[e, 3]]
             
             #Converts from global view to local view
-            #Local pose is centered in local frame, and the orientation is the difference btw the global and origin poses
+            #Local pose is centered in local frame, wrt the lower-left vertex of the local map boundary, which is the local origin
+            #The global origin is different, it is the lower-left vertex of the full map
             local_pose[e] = full_pose[e] - \
                 torch.from_numpy(origins[e]).to(device).float()
 
@@ -369,6 +374,9 @@ def main():
             p_input['sem_map_pred'] = local_map[e, 4:, :, :
                                                 ].argmax(0).cpu().numpy()
 
+    #obs: Contains RGB, Depth and Semantic info for each scene. Shape: (Scenes, Channels, Height, Width)
+    #done: Done flags that indicate whether an episode is completed.
+    #infos: Sensor information like Pose Data
     obs, _, done, infos = envs.plan_act_and_preprocess(planner_inputs)
 
     start = time.time()
@@ -392,7 +400,7 @@ def main():
         g_masks *= l_masks
 
         for e, x in enumerate(done):
-            if x:
+            if x:   #If episode is done
                 spl = infos[e]['spl']
                 success = infos[e]['success']
                 dist = infos[e]['distance_to_goal']
@@ -449,6 +457,7 @@ def main():
                 #This is done for each global step (each scene)
                 #For full_map, the local map is added to specifically the local map boundary region in the full map
                 #For full_pose, the local pose is realigned with new global origins
+                #The lmb used here is the previous one, not the current one, so full map is updated with prev lmb updates
                 full_map[e, :, lmb[e, 0]:lmb[e, 1], lmb[e, 2]:lmb[e, 3]] = \
                     local_map[e]
                 full_pose[e] = local_pose[e] + \
@@ -459,6 +468,7 @@ def main():
                 loc_r, loc_c = [int(r * 100.0 / args.map_resolution),
                                 int(c * 100.0 / args.map_resolution)]
 
+                #This gives the current lmb
                 lmb[e] = get_local_map_boundaries((loc_r, loc_c),
                                                   (local_w, local_h),
                                                   (full_w, full_h))
@@ -466,7 +476,8 @@ def main():
                 planner_pose_inputs[e, 3:] = lmb[e]
                 origins[e] = [lmb[e][2] * args.map_resolution / 100.0,
                               lmb[e][0] * args.map_resolution / 100.0, 0.]
-
+                
+                #local map is updated with new lmb
                 local_map[e] = full_map[e, :,
                                         lmb[e, 0]:lmb[e, 1],
                                         lmb[e, 2]:lmb[e, 3]]
