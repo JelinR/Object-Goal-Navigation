@@ -16,6 +16,7 @@ from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.utils.visualizer import ColorMode, Visualizer
 import detectron2.data.transforms as T
 
+#Dictionary containing mapping from COCO label to newly defined labels (eg. for chair: 56: 0)
 from constants import coco_categories_mapping
 
 
@@ -28,21 +29,42 @@ class SemanticPredMaskRCNN():
     def get_prediction(self, img):
         args = self.args
         image_list = []
+
+        #Reorders the channels, starting from the last and ending with the first channel (RGB -> BGR)
+        #Here, the first dim corresponds to x, second to y, and third to channels (like color)
         img = img[:, :, ::-1]
         image_list.append(img)
+
+        #For output documentation, refer: https://detectron2.readthedocs.io/en/latest/tutorials/models.html#model-output-format
+        #seg_predictions is of type list[dict], and we are interested in its 'instances' key entry
+        #An instance refers to an object detected in the image, it is an object class that contains pred_boxes and pred_classes, etc.
+        #That is, each instance contains boxes or scores of size N, with N referring to the categories considered
         seg_predictions, vis_output = self.segmentation_model.get_predictions(
             image_list, visualize=args.visualize == 2)
 
         if args.visualize == 2:
             img = vis_output.get_image()
 
+        #Image with 15 Object Semantic Channels (as given in constants.py)
+        #The last channel is left as the original image
         semantic_input = np.zeros((img.shape[0], img.shape[1], 15 + 1))
 
+        #Loops over the instances, which is a list of predicted categories (pred_classes) in the image
+        #For each instance, checks if it is one of our desired objects (as given in coco_categories in constants.py)
+        #If yes, we get the corresponding object mask and add it to the corresponding semantic channel
         for j, class_idx in enumerate(
                 seg_predictions[0]['instances'].pred_classes.cpu().numpy()):
+            
+            #If class id is in desired coco_categories
             if class_idx in list(coco_categories_mapping.keys()):
+                
+                #Maps coco class id (class_idx) to newly defined id
                 idx = coco_categories_mapping[class_idx]
+
+                #Get object mask for the instance with class_idx (at position j in the list)
                 obj_mask = seg_predictions[0]['instances'].pred_masks[j] * 1.
+
+                #Adds object mask to corresponding object channel
                 semantic_input[:, :, idx] += obj_mask.cpu().numpy()
 
         return semantic_input, img
@@ -100,6 +122,7 @@ def setup_cfg(args):
 def get_seg_parser():
     parser = argparse.ArgumentParser(
         description="Detectron2 demo for builtin models")
+    
     parser.add_argument(
         "--config-file",
         default="configs/quick_schedules/mask_rcnn_R_50_FPN_inference_acc_test.yaml",
