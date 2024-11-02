@@ -1,29 +1,43 @@
 import cv2
 import numpy as np
 
-
+#Returns vertices for a pointer-shaped polygon 
+#For visualizing current location
+#Refer to check.ipynb for visualizations
 def get_contour_points(pos, origin, size=20):
     x, y, o = pos
+
+    #New origin point wrt the origin coords
     pt1 = (int(x) + origin[0],
            int(y) + origin[1])
+    
+
     pt2 = (int(x + size / 1.5 * np.cos(o + np.pi * 4 / 3)) + origin[0],
            int(y + size / 1.5 * np.sin(o + np.pi * 4 / 3)) + origin[1])
+    
+    #pt3 is the diagonal point opposite to the origin (pt1), with diagonal length being 'size' and the orientation being the angle with x axis
+    #This is the reason why size is multiplied by cos(o) and sin(o) to get the x_shift and y_shift
     pt3 = (int(x + size * np.cos(o)) + origin[0],
            int(y + size * np.sin(o)) + origin[1])
+    
+
     pt4 = (int(x + size / 1.5 * np.cos(o - np.pi * 4 / 3)) + origin[0],
            int(y + size / 1.5 * np.sin(o - np.pi * 4 / 3)) + origin[1])
 
     return np.array([pt1, pt2, pt3, pt4])
 
-
+#Draws a line of width (w) on mat from start till end with spaced steps
 def draw_line(start, end, mat, steps=25, w=1):
+    
+    #Spaced steps or points
     for i in range(steps + 1):
         x = int(np.rint(start[0] + (end[0] - start[0]) * i / steps))
         y = int(np.rint(start[1] + (end[1] - start[1]) * i / steps))
         mat[x - w:x + w, y - w:y + w] = 1
     return mat
 
-
+#Defines two boxes, one for Observation (live screen) and other for predicted Semantic Map
+#Check example.gif from docs for reference
 def init_vis_image(goal_name, legend):
     vis_image = np.ones((655, 1165, 3)).astype(np.uint8) * 255
     font = cv2.FONT_HERSHEY_SIMPLEX
