@@ -23,7 +23,7 @@ def get_args():
                         help='total number of training frames')
     parser.add_argument('--num_eval_episodes', type=int, default=200,
                         help="number of test episodes per scene")
-    parser.add_argument('--num_train_episodes', type=int, default=10000,
+    parser.add_argument('--num_train_episodes', type=int, default=10000,            #For each scene, a specific number of episodes are run and trained on.  After these, we move on to the next scene.
                         help="""number of train episodes per scene
                                 before loading the next scene""")
     parser.add_argument('--no_cuda', action='store_true', default=False,

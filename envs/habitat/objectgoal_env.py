@@ -307,6 +307,8 @@ class ObjectGoal_Env(habitat.RLEnv):
                          evaluation metric info
         """
         args = self.args
+
+        #After a fixed number of episodes (num_train_episodes), we move on to the next scene
         new_scene = self.episode_no % args.num_train_episodes == 0
 
         self.episode_no += 1

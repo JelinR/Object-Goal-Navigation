@@ -82,6 +82,10 @@ def main():
     # Starting environments
     torch.set_num_threads(1)
     envs = make_vec_envs(args)
+
+    #obs: RGBD observations with semantic channels: (4 + n_sem_channels, H, W)
+    #infos: dict containing timestep, pose, goal category and evaluation metric info
+    #Reference: envs.habitat.objectgoal_env.py
     obs, infos = envs.reset()
 
     torch.set_grad_enabled(False)
