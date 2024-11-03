@@ -94,29 +94,45 @@ def transform_pose(XYZ, current_pose):
     XYZ[:, :, 1] = XYZ[:, :, 1] + current_pose[1]
     return XYZ
 
-
+#Bins 3D points into a 3D bin count grid of shape (map_size, map_size, n_z_bins)
+#Each 3D bin contains the number of 3D points binned into it (counts)
 def bin_points(XYZ_cms, map_size, z_bins, xy_resolution):
     """Bins points into xy-z bins
     XYZ_cms is ... x H x W x3
     Outputs is ... x map_size x map_size x (len(z_bins)+1)
     """
     sh = XYZ_cms.shape
+
+    #Flattens the scenes and channels dimension
+    #So, for each combination of scene and channel, we get a point set of shape (H, W, 3)
     XYZ_cms = XYZ_cms.reshape([-1, sh[-3], sh[-2], sh[-1]])
     n_z_bins = len(z_bins) + 1
     counts = []
+
+    #Looping through each point set (for each combination of scene and channel)
     for XYZ_cm in XYZ_cms:
         isnotnan = np.logical_not(np.isnan(XYZ_cm[:, :, 0]))
         X_bin = np.round(XYZ_cm[:, :, 0] / xy_resolution).astype(np.int32)
         Y_bin = np.round(XYZ_cm[:, :, 1] / xy_resolution).astype(np.int32)
+
+        #Assigns z values to the corresponding bins in z_bins
         Z_bin = np.digitize(XYZ_cm[:, :, 2], bins=z_bins).astype(np.int32)
 
+        #Checks validity (if each point falls within the range of bins for x, y and z)
+        #Also checks that the points are not NaN
         isvalid = np.array([X_bin >= 0, X_bin < map_size, Y_bin >= 0,
                             Y_bin < map_size,
                             Z_bin >= 0, Z_bin < n_z_bins, isnotnan])
         isvalid = np.all(isvalid, axis=0)
 
+        #Get a flattened index for the count grid
         ind = (Y_bin * map_size + X_bin) * n_z_bins + Z_bin
+
+        #Invalid points have their index set to zero
         ind[np.logical_not(isvalid)] = 0
+
+        #Counts occurrences in each bin by first flattening the ind
+        #Reshapes it later into the desired shape
         count = np.bincount(ind.ravel(), isvalid.ravel().astype(np.int32),
                             minlength=map_size * map_size * n_z_bins)
         counts = np.reshape(count, [map_size, map_size, n_z_bins])
