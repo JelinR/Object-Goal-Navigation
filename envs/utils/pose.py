@@ -35,7 +35,7 @@ def get_new_pose(pose, rel_pose_change):
 
     return x, y, o
 
-
+#Makes sure the x, y positions are within the bounds
 def threshold_poses(coords, shape):
     coords[0] = min(max(0, coords[0]), shape[0] - 1)
     coords[1] = min(max(0, coords[1]), shape[1] - 1)

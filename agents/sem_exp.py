@@ -72,10 +72,14 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
         self.visited_vis = np.zeros(map_shape)
         self.col_width = 1
         self.count_forward_actions = 0
+
+        #Resets the position to be in the map center
         self.curr_loc = [args.map_size_cm / 100.0 / 2.0,
                          args.map_size_cm / 100.0 / 2.0, 0.]
         self.last_action = None
 
+        #Defines two boxes, one for Observation (live screen) and other for predicted Semantic Map
+        #Check example.gif from docs for reference
         if args.visualize or args.print_images:
             self.vis_image = vu.init_vis_image(self.goal_name, self.legend)
 
@@ -398,6 +402,7 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
             np.deg2rad(-start_o)
         )
 
+        #Draws Pointer-shaped polygon for current position
         agent_arrow = vu.get_contour_points(pos, origin=(670, 50))
         color = (int(color_palette[11] * 255),
                  int(color_palette[10] * 255),
