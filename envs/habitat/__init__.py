@@ -75,8 +75,14 @@ def construct_envs(args):
             "aren't enough number of scenes"
         )
 
+        #Splits scenes to available threads (corresponding to num_processes)
+        #So, each thread will have close to equal amount of scenes
+        #These scenes are processed parallely, while within a thread the scenes are processed sequentially
         scene_split_sizes = [int(np.floor(len(scenes) / args.num_processes))
                              for _ in range(args.num_processes)]
+        
+        #The spillover scenes (the remainder of scenes that are left over when all the others are divisible by num_processes)
+        #These are then added on to the threads, with the thread scene counts updated one by one
         for i in range(len(scenes) % args.num_processes):
             scene_split_sizes[i] += 1
 
@@ -86,6 +92,7 @@ def construct_envs(args):
                                            + args.task_config])
         config_env.defrost()
 
+        #Prints scenes per thread
         if len(scenes) > 0:
             config_env.DATASET.CONTENT_SCENES = scenes[
                 sum(scene_split_sizes[:i]):
@@ -93,6 +100,7 @@ def construct_envs(args):
             ]
             print("Thread {}: {}".format(i, config_env.DATASET.CONTENT_SCENES))
 
+        #Assigning processes to the GPUs
         if i < args.num_processes_on_first_gpu:
             gpu_id = 0
         else:

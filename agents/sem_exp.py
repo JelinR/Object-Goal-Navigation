@@ -60,8 +60,9 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
         args = self.args
 
         obs, info = super().reset()
-        obs = self._preprocess_obs(obs)
 
+        #Gets (rgb, depth, sem_preds) output
+        obs = self._preprocess_obs(obs)
         self.obs_shape = obs.shape
 
         # Episode initializations
@@ -296,12 +297,18 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
 
     def _preprocess_obs(self, obs, use_seg=True):
         args = self.args
+
+        #This makes the concatenation dimension as the last dimension
         obs = obs.transpose(1, 2, 0)
         rgb = obs[:, :, :3]
         depth = obs[:, :, 3:4]
 
+        #Gets semantic segmentation results (wrt coco categories)
+        #Also creates an segmented image saved in self.rgb_vis
         sem_seg_pred = self._get_sem_pred(
             rgb.astype(np.uint8), use_seg=use_seg)
+        
+        #Scales depth values to the [min_d, max_d] * 100 range
         depth = self._preprocess_depth(depth, args.min_depth, args.max_depth)
 
         ds = args.env_frame_width // args.frame_width  # Downscaling factor
@@ -310,6 +317,7 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
             depth = depth[ds // 2::ds, ds // 2::ds]
             sem_seg_pred = sem_seg_pred[ds // 2::ds, ds // 2::ds]
 
+        #Concatenate rgb, depth and sem_preds
         depth = np.expand_dims(depth, axis=2)
         state = np.concatenate((rgb, depth, sem_seg_pred),
                                axis=2).transpose(2, 0, 1)
@@ -319,14 +327,20 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
     def _preprocess_depth(self, depth, min_d, max_d):
         depth = depth[:, :, 0] * 1
 
+        #Looping over the rows in the image
+        #In a row, the 0 entries are replaced with max_row values
         for i in range(depth.shape[1]):
             depth[:, i][depth[:, i] == 0.] = depth[:, i].max()
 
+        #For high depth values, they are replaced with value 0
         mask2 = depth > 0.99
         depth[mask2] = 0.
 
+        #For 0 values, they are replaced with value 100
         mask1 = depth == 0
         depth[mask1] = 100.0
+
+        #Scales values to the [min_d, max_d] * 100 range
         depth = min_d * 100.0 + depth * max_d * 100.0
         return depth
 

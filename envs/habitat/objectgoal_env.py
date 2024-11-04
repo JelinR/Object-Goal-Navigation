@@ -80,10 +80,12 @@ class ObjectGoal_Env(habitat.RLEnv):
         function is used for evaluating a trained model on the val split.
         """
 
+        #Gets scene dir path and name
         args = self.args
         self.scene_path = self.habitat_env.sim.config.SCENE
         scene_name = self.scene_path.split("/")[-1].split(".")[0]
-
+        
+        #If new scene, then update the episodes file too
         if self.scene_path != self.last_scene_path:
             episodes_file = self.episodes_dir + \
                 "content/{}_episodes.json.gz".format(scene_name)
@@ -96,7 +98,7 @@ class ObjectGoal_Env(habitat.RLEnv):
             self.eps_data_idx = 0
             self.last_scene_path = self.scene_path
 
-        # Load episode info
+        # Get episode and initilize pose
         episode = self.eps_data[self.eps_data_idx]
         self.eps_data_idx += 1
         self.eps_data_idx = self.eps_data_idx % len(self.eps_data)

@@ -44,10 +44,9 @@ def main():
 
     # Logging and loss variables
     num_scenes = args.num_processes
-    num_episodes = int(args.num_eval_episodes)
+    num_episodes = int(args.num_eval_episodes)      #Number of eps to run for each scene
     device = args.device = torch.device("cuda:0" if args.cuda else "cpu")
 
-    #DOUBT
     g_masks = torch.ones(num_scenes).float().to(device)
 
     best_g_reward = -np.inf
@@ -80,12 +79,16 @@ def main():
     g_process_rewards = np.zeros((num_scenes))
 
     # Starting environments
+    # Splits scenes for each threads, and assigns threads to the GPUs
+    # Initializes the sensors' (RGB, Depth) arguments: width, height, hfov, position
+    # Initializes the Environment based on args.agent: ObjectGoal_Env or Sem_Exp_Env_Agent
     torch.set_num_threads(1)
     envs = make_vec_envs(args)
 
+    #Starts a new episode and initializes the vis_image (with two boxes)
     #obs: RGBD observations with semantic channels: (4 + n_sem_channels, H, W)
     #infos: dict containing timestep, pose, goal category and evaluation metric info
-    #Reference: envs.habitat.objectgoal_env.py
+    #Reference: envs.habitat.objectgoal_env.py and agents.sem_exp.py
     obs, infos = envs.reset()
 
     torch.set_grad_enabled(False)

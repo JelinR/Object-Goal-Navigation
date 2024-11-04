@@ -30,7 +30,7 @@ class SemanticPredMaskRCNN():
         args = self.args
         image_list = []
 
-        #Reorders the channels, starting from the last and ending with the first channel (RGB -> BGR)
+        #Reorders the channels, starting from the last and ending with the first channel (RGB -> BGR) as required by OpenCV
         #Here, the first dim corresponds to x, second to y, and third to channels (like color)
         img = img[:, :, ::-1]
         image_list.append(img)
