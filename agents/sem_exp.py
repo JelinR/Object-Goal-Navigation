@@ -107,7 +107,8 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
                          evaluation metric info
         """
 
-        # plan
+        # If true, then new episode needs to be started
+        # Initialize variables and return
         if planner_inputs["wait"]:
             self.last_action = None
             self.info["sensor_pose"] = [0., 0., 0.]
@@ -117,18 +118,24 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
         if planner_inputs["new_goal"]:
             self.info["g_reward"] = 0
 
+        #Outputs an action to take based on the goal and map
+        #Draws a path line from prev position to current position
         action = self._plan(planner_inputs)
 
+        #Visualization: 
+        #Colors the semantic map in RGB format
+        #Displays the sem map and the rgb visuals in the two boxes
+        #Saves the results in a directory
         if self.args.visualize or self.args.print_images:
             self._visualize(planner_inputs)
 
         if action >= 0:
 
-            # act
+            # Takes action and gets new observation and reward
             action = {'action': action}
             obs, rew, done, info = super().step(action)
 
-            # preprocess obs
+            # preprocess new observation
             obs = self._preprocess_obs(obs) 
             self.last_action = action['action']
             self.obs = obs
@@ -362,49 +369,64 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
         if not os.path.exists(ep_dir):
             os.makedirs(ep_dir)
 
-        map_pred = inputs['map_pred']
-        exp_pred = inputs['exp_pred']
+        map_pred = inputs['map_pred']       #Obstacle map
+        exp_pred = inputs['exp_pred']       #Explored map
         start_x, start_y, start_o, gx1, gx2, gy1, gy2 = inputs['pose_pred']
 
         goal = inputs['goal']
-        sem_map = inputs['sem_map_pred']
+        sem_map = inputs['sem_map_pred']    #Semantic map (with multiple channels)
 
         gx1, gx2, gy1, gy2 = int(gx1), int(gx2), int(gy1), int(gy2)
 
+        #There are 19 unique colors in color_palette (constants.py)
+        #Currently sem_map has 16 channels, with labels from 0 till 14
+        #Adding five will shift all these to [5, 19], leaving space for five more labels
+        #These labels are defined below: Absent areas, Explored, obstacles, current region, goal mask
         sem_map += 5
 
-        no_cat_mask = sem_map == 20
-        map_mask = np.rint(map_pred) == 1
-        exp_mask = np.rint(exp_pred) == 1
+        no_cat_mask = sem_map == 20             #No desired object mask
+        map_mask = np.rint(map_pred) == 1       #Obstacle mask
+        exp_mask = np.rint(exp_pred) == 1       #Explored region mask
         vis_mask = self.visited_vis[gx1:gx2, gy1:gy2] == 1
 
-        sem_map[no_cat_mask] = 0
+        #Absent areas (without desired objects) are labelled 0
+        #Desired objects differ from obstacles (table can be an obstacle and not a desired object)
+        sem_map[no_cat_mask] = 0                    
+
+        #Absent areas that are explored are labelled 2
         m1 = np.logical_and(no_cat_mask, exp_mask)
         sem_map[m1] = 2
 
+        #Absent areas that contain obstacles are labelled 1
         m2 = np.logical_and(no_cat_mask, map_mask)
         sem_map[m2] = 1
 
+        #Currently visited region is labelled 3
         sem_map[vis_mask] = 3
 
-        selem = skimage.morphology.disk(4)
+        #goal_mat: Marks the non-dilated (or original) region of goal
+        selem = skimage.morphology.disk(4)        
         goal_mat = 1 - skimage.morphology.binary_dilation(
             goal, selem) != True
 
+        #Identifies where goal is located
         goal_mask = goal_mat == 1
         sem_map[goal_mask] = 4
 
         color_pal = [int(x * 255.) for x in color_palette]
-        sem_map_vis = Image.new("P", (sem_map.shape[1],
+        sem_map_vis = Image.new("P", (sem_map.shape[1],             #Creates a new image in palette mode
                                       sem_map.shape[0]))
-        sem_map_vis.putpalette(color_pal)
-        sem_map_vis.putdata(sem_map.flatten().astype(np.uint8))
-        sem_map_vis = sem_map_vis.convert("RGB")
-        sem_map_vis = np.flipud(sem_map_vis)
+        sem_map_vis.putpalette(color_pal)                           #Processes the color palette
+        sem_map_vis.putdata(sem_map.flatten().astype(np.uint8))     #Each pixel value is assigned a color
+        sem_map_vis = sem_map_vis.convert("RGB")                    #Converts from palette mode to RGB mode
+        sem_map_vis = np.flipud(sem_map_vis)                        #Flips map upside-down
 
-        sem_map_vis = sem_map_vis[:, :, [2, 1, 0]]
-        sem_map_vis = cv2.resize(sem_map_vis, (480, 480),
+        sem_map_vis = sem_map_vis[:, :, [2, 1, 0]]                  #Reorders color channels: RGB -> BGR (used by OpenCV)
+        sem_map_vis = cv2.resize(sem_map_vis, (480, 480),           #Resize to display dimensions
                                  interpolation=cv2.INTER_NEAREST)
+        
+        #Plotting rgb visuals onto observation box (remember vis_image shape: (y, x))
+        #Plotting semantic map flattened onto the sem map box
         self.vis_image[50:530, 15:655] = self.rgb_vis
         self.vis_image[50:530, 670:1150] = sem_map_vis
 

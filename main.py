@@ -369,18 +369,19 @@ def main():
 
     planner_inputs = [{} for e in range(num_scenes)]
     for e, p_input in enumerate(planner_inputs):
-        p_input['map_pred'] = local_map[e, 0, :, :].cpu().numpy()
-        p_input['exp_pred'] = local_map[e, 1, :, :].cpu().numpy()
+        p_input['map_pred'] = local_map[e, 0, :, :].cpu().numpy()       #Obstacle Map (cropped map and flattened)
+        p_input['exp_pred'] = local_map[e, 1, :, :].cpu().numpy()       #Explored Map (uncropped and flattened)
         p_input['pose_pred'] = planner_pose_inputs[e]
         p_input['goal'] = goal_maps[e]  # global_goals[e]
         p_input['new_goal'] = 1
         p_input['found_goal'] = 0
-        p_input['wait'] = wait_env[e] or finished[e]
+        p_input['wait'] = wait_env[e] or finished[e]                    #If true, then new episode needs to be started
         if args.visualize or args.print_images:
             local_map[e, -1, :, :] = 1e-5
             p_input['sem_map_pred'] = local_map[e, 4:, :, :
                                                 ].argmax(0).cpu().numpy()
 
+    #Plans for taking action, take action and step getting new observation and reward, preprocess the new observation
     #obs: Contains RGB, Depth and Semantic info for each scene. Shape: (Scenes, Channels, Height, Width)
     #done: Done flags that indicate whether an episode is completed.
     #infos: Sensor information like Pose Data

@@ -367,6 +367,7 @@ class ObjectGoal_Env(habitat.RLEnv):
             # Not sending stop to simulator, resetting manually
             action = 3
 
+        #Takes action and get new observation and reward
         obs, rew, done, _ = super().step(action)
 
         # Get pose change
@@ -374,6 +375,7 @@ class ObjectGoal_Env(habitat.RLEnv):
         self.info['sensor_pose'] = [dx, dy, do]
         self.path_length += pu.get_l2_distance(0, dx, 0, dy)
 
+        #Gets metrics if episode is done
         spl, success, dist = 0., 0., 0.
         if done:
             spl, success, dist = self.get_metrics()
@@ -381,10 +383,12 @@ class ObjectGoal_Env(habitat.RLEnv):
             self.info['spl'] = spl
             self.info['success'] = success
 
+        #Processes new observation
         rgb = obs['rgb'].astype(np.uint8)
         depth = obs['depth']
         state = np.concatenate((rgb, depth), axis=2).transpose(2, 0, 1)
 
+        #Increments timestep
         self.timestep += 1
         self.info['time'] = self.timestep
 
