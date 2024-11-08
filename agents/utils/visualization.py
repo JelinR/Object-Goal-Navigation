@@ -63,14 +63,18 @@ def init_vis_image(goal_name, legend):
 
     # draw outlines
     color = [100, 100, 100]
-    vis_image[49, 15:655] = color
-    vis_image[49, 670:1150] = color
-    vis_image[50:530, 14] = color
-    vis_image[50:530, 655] = color
-    vis_image[50:530, 669] = color
-    vis_image[50:530, 1150] = color
-    vis_image[530, 15:655] = color
-    vis_image[530, 670:1150] = color
+
+    #Observations box (480x640) - position top left
+    vis_image[49, 15:655] = color         #Top margin
+    vis_image[50:530, 14] = color         #Left margin
+    vis_image[50:530, 655] = color        #Right margin
+    vis_image[530, 15:655] = color        #Bottom margin
+
+    #Predicted Semantic Map box (480x480) - position top right
+    vis_image[49, 670:1150] = color       #Top margin
+    vis_image[50:530, 669] = color        #Left margin
+    vis_image[50:530, 1150] = color       #Right margin
+    vis_image[530, 670:1150] = color      #Bottom margin
 
     # draw legend
     lx, ly, _ = legend.shape

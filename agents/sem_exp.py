@@ -62,6 +62,7 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
         obs, info = super().reset()
 
         #Gets (rgb, depth, sem_preds) output
+        #Of shape: (20, frame_height, frame_width)
         obs = self._preprocess_obs(obs)
         self.obs_shape = obs.shape
 
@@ -312,6 +313,7 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
 
         #Gets semantic segmentation results (wrt coco categories)
         #Also creates an segmented image saved in self.rgb_vis
+        #Of shape: (rgb.shape[0], rgb.shape[1], 16)
         sem_seg_pred = self._get_sem_pred(
             rgb.astype(np.uint8), use_seg=use_seg)
         
@@ -325,6 +327,7 @@ class Sem_Exp_Env_Agent(ObjectGoal_Env):
             sem_seg_pred = sem_seg_pred[ds // 2::ds, ds // 2::ds]
 
         #Concatenate rgb, depth and sem_preds
+        #Of shape: (20, frame_height, frame_width)
         depth = np.expand_dims(depth, axis=2)
         state = np.concatenate((rgb, depth, sem_seg_pred),
                                axis=2).transpose(2, 0, 1)
