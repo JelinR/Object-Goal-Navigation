@@ -440,7 +440,7 @@ def main():
             sem_map_module(obs, poses, local_map, local_pose)
 
         locs = local_pose.cpu().numpy()
-        planner_pose_inputs[:, :3] = locs + origins     #Shifting origins
+        planner_pose_inputs[:, :3] = locs + origins     #Changing local pose to global pose
         local_map[:, 2, :, :].fill_(0.)                 #Resetting current location channel
         for e in range(num_scenes):
             r, c = locs[e, 1], locs[e, 0]
